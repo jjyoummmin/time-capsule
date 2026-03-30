@@ -1,0 +1,14 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: time-capsule
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: cd web && npm ci && npm run build && cd ../server && npm ci
+    startCommand: cd server && node src/index.js
+    envVars:
+      - key: NODE_VERSION
+        value: "20.18.0"
+      - key: DATABASE_URL
+        sync: false

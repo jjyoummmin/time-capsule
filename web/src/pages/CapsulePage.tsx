@@ -5,6 +5,23 @@ import { mainnetClient, roundTime, timelockDecrypt } from "tlock-js";
 import { getCapsule, type CapsuleDTO } from "../api";
 import { openMessage } from "../password";
 
+function formatRemainingKo(targetMs: number, nowMs: number): string {
+  let ms = targetMs - nowMs;
+  if (ms < 0) {
+    ms = 0;
+  }
+  const totalSec = Math.floor(ms / 1000);
+  const days = Math.floor(totalSec / 86400);
+  const hours = Math.floor((totalSec % 86400) / 3600);
+  const minutes = Math.floor((totalSec % 3600) / 60);
+  const seconds = totalSec % 60;
+  const d = String(days).padStart(2, "0");
+  const h = String(hours).padStart(2, "0");
+  const m = String(minutes).padStart(2, "0");
+  const s = String(seconds).padStart(2, "0");
+  return `${d}일 ${h}시간 ${m}분 ${s}초 남음`;
+}
+
 export function CapsulePage() {
   const { id } = useParams<{ id: string }>();
   const [cap, setCap] = useState<CapsuleDTO | null>(null);
@@ -18,6 +35,7 @@ export function CapsulePage() {
   const [plain, setPlain] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   const refreshChain = useCallback(async (dto: CapsuleDTO) => {
     const client = mainnetClient();
@@ -72,6 +90,14 @@ export function CapsulePage() {
     return () => window.clearInterval(t);
   }, [cap, phase, refreshChain]);
 
+  useEffect(() => {
+    if (!cap || latestRound === null || latestRound >= cap.targetRound || approxOpenMs == null) {
+      return;
+    }
+    const id = window.setInterval(() => setNowTick(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [cap, latestRound, approxOpenMs]);
+
   async function tryUnlock() {
     if (!cap) {
       return;
@@ -94,7 +120,7 @@ export function CapsulePage() {
       const msg = e instanceof Error ? e.message : String(e);
       if (cap.hasPassword) {
         if (msg.includes("비밀번호") || (e instanceof DOMException && e.name === "OperationError")) {
-          setErr("비밀번호가 올바르지 않거나, 비밀번호 없이 만들었을 수 있습니다.");
+          setErr("비밀번호가 올바르지 않습니다.");
         } else {
           setErr(msg);
         }
@@ -108,17 +134,20 @@ export function CapsulePage() {
 
   if (loadErr) {
     return (
-      <div className="panel">
+      <div className="panel panel-error">
         <p className="error">{loadErr}</p>
-        <Link to="/">처음으로</Link>
+        <Link className="secondary" to="/">
+          처음으로
+        </Link>
       </div>
     );
   }
 
   if (!cap || latestRound === null) {
     return (
-      <div className="panel">
-        <p>불러오는 중…</p>
+      <div className="panel panel-loading">
+        <span className="spinner" aria-hidden />
+        <span>캡슐을 불러오는 중…</span>
       </div>
     );
   }
@@ -134,15 +163,34 @@ export function CapsulePage() {
   return (
     <div className="panel">
       <h1>타임캡슐</h1>
-      <p className="meta muted">
-        목표 라운드 <strong>{cap.targetRound}</strong>
-        {approxKst && (
+      <div className="capsule-meta">
+        {locked ? (
           <>
-            {" "}
-            · 비콘 기준 대략 <strong>{approxKst}</strong> (KST, 네트워크 지연에 따라 달라질 수 있음)
+            {approxKst ? (
+              <p className="meta">
+                이 캡슐은 <strong>{approxKst}</strong> 이후부터 열 수 있어요. (KST)
+              </p>
+            ) : (
+              <p className="meta muted">열리는 시각을 불러오는 중…</p>
+            )}
+            {approxOpenMs != null && (
+              <p className="capsule-countdown" aria-live="polite">
+                {formatRemainingKo(approxOpenMs, nowTick)}
+              </p>
+            )}
+            <p className="meta-foot muted small">
+              목표 라운드 {cap.targetRound}. drand 네트워크 지연 등으로 실제 시각은 앞뒤로 조금 달라질 수
+              있습니다.
+            </p>
           </>
+        ) : approxKst ? (
+          <p className="meta">
+            이 캡슐은 <strong>{approxKst}</strong> 에 열렸습니다.
+          </p>
+        ) : (
+          <p className="meta">이 캡슐은 열렸습니다.</p>
         )}
-      </p>
+      </div>
 
       {shareUrl && (
         <div className="inlineQr">
@@ -192,7 +240,9 @@ export function CapsulePage() {
         <div className="revealed">
           <h2>메시지</h2>
           <pre className="message">{plain}</pre>
-          <Link to="/">새 캡슐 만들기</Link>
+          <Link className="secondary" to="/">
+            새 캡슐 만들기
+          </Link>
         </div>
       )}
     </div>

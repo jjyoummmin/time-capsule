@@ -6,10 +6,13 @@ export function App() {
   return (
     <div className="app">
       <header className="top">
-        <Link to="/" className="brand">
-          온라인 타임캡슐
-        </Link>
-        <span className="tag">drand · tlock-js</span>
+        <div className="top-inner">
+          <Link to="/" className="brand">
+            <span className="brand-mark" aria-hidden />
+            온라인 타임캡슐
+          </Link>
+          <span className="tag">drand · tlock</span>
+        </div>
       </header>
       <main className="main">
         <Routes>
